@@ -1,0 +1,206 @@
+---
+title: "A Brief Analysis of Mobi's Public Dataset"
+author: "Andrew Luyt"
+output:
+  html_document:
+    keep_md: true
+---
+
+*Last updated `r format(Sys.Date(), '%A %B %d, %Y')`*
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE, include=FALSE)
+```
+
+```{r packages_and_load_data, echo=TRUE, include=FALSE, message=FALSE, warning=FALSE, collapse=TRUE}
+# Load packages and data
+library(tidyverse)
+library(lubridate)
+library(sf)         # Vancouver map
+library(gganimate)
+library(viridis)
+# additional libraries: gifski for rendering animations as gifs
+
+RIDES = "data/mobi_rides.Rdata"
+if(file.exists(RIDES)) {
+  load(RIDES)
+  df <- as_tibble(df) %>% 
+    mutate(hour = hour(depart_time))
+} else {
+  stop("Please run clean_data.R to create the required data")
+}
+
+MAP = "data/vancouver_map.geojson"
+if(file.exists(MAP)) {
+  MAP <- st_read(MAP)
+} else {
+  stop("Please run clean_data.R to create the required data")
+}
+
+STANLEY_PARK = "data/parks-polygon-representation.geojson"
+if(file.exists(STANLEY_PARK)) {
+  STANLEY_PARK <- st_read(STANLEY_PARK)
+  STANLEY_PARK <- STANLEY_PARK %>% filter(park_name == 'Stanley Park')
+}
+
+rm(RIDES)
+
+# Helper function for vectors
+angle_from_x_axis <- function(y,x) {
+  angle <- atan2(y, x)
+  if (y<0) {
+    angle <- angle + 2 * pi
+  }
+  angle * 180 / pi
+}
+
+source("mobi_functions.R", local = knitr::knit_global())
+
+```
+
+
+```{r theming}
+default_theme <- theme_set(theme_bw())
+theme_update(panel.grid = element_blank(),
+             legend.justification = "top",
+             plot.title = element_text(size=14, face="bold"),
+             axis.text.x = element_text(size = 10),
+             plot.margin = unit(c(0.3,0,0.3,0), "cm"))
+
+theme_map <- theme_bw() +
+  theme(axis.title = element_blank(), 
+        axis.text = element_blank(), 
+        axis.ticks = element_blank(),
+        panel.grid = element_blank(),
+        panel.background = element_rect(fill = 'white'),
+        plot.title = element_text(size=20, face="bold"),
+        legend.justification = "top",
+        legend.position = "none", 
+        plot.margin = unit(c(0.3,0,0.3,0), "cm"))
+
+theme_map_dark <- theme_bw() +
+  theme(axis.title = element_blank(), 
+        axis.text = element_blank(), 
+        axis.ticks = element_blank(),
+        panel.grid = element_blank(),
+        panel.background = element_rect(fill = 'grey40'),
+        plot.title = element_text(size=20, face="bold"),
+        legend.justification = "top",
+        legend.position = "none", 
+        plot.margin = unit(c(0.3,0,0.3,0), "cm"))
+```
+```{r arrange membership factors by number of rides}
+ordered_memberships <- df %>% 
+  group_by(membership) %>% 
+  tally() %>% 
+  arrange(desc(n)) %>% 
+  pull(membership) %>% 
+  as.vector()
+df <- df %>% 
+  mutate(membership = fct_relevel(membership, ordered_memberships))
+```
+```{r}
+popular_memberships <- df %>% 
+  group_by(membership) %>% 
+  tally() %>% 
+  filter(n > 9000) %>% 
+  arrange(desc(n)) %>% 
+  pull(membership)
+popular_memberships <- popular_memberships[1:8]
+popular_memberships <- as.factor(as.character(popular_memberships))
+```
+
+# Summary
+
+This notebook is a quick analysis of 
+[the public dataset](https://www.mobibikes.ca/en/system-data){target="_blank"} of Mobi, a 
+bike-sharing company in Vancouver, Canada. The data cover one year from August 
+1, 2020 to July 31, 2021.  Three aspects will be covered:
+
+- Traffic flow estimation
+- Mapping the popularity of individual stations
+- Seasonal variation in bike use
+
+# Traffic flow
+
+To visualize how bicycle traffic flows around the Mobi system, this animation
+finds all the trips taken from each bike station and shows the "average
+trip" as an arrow. The longer the arrow, the stronger the tendency for
+riders to travel in that direction. A very short arrow
+means riders are traveling in *all* directions with no clear pattern. Brighter
+colours mean more traffic.
+
+```{r departing traffic by all members, include=TRUE, message=FALSE}
+anim <- df %>%
+  filter(id_depart != id_return) %>%
+  animated.map(direction = "departing", arrow.scale = 0.25, transition_frames = 10, state_frames = 1)
+
+FPS = 24; W = 650; H = 650; DTL = 1; S = paste0(W,"x",H); NFRAMES = 1*24*11 # bins per hour * 24 hours * frames/hour 
+animate(plot = anim, fps = FPS, nframes = NFRAMES, detail=DTL, width=W, height=H)
+```
+
+An interesting pattern is that most traffic flows *towards* downtown, on average.
+A notable exception is the group of stations on the eastern side of Stanley Park which
+are often used to start a tour around the seawall.
+
+# Which stations are busiest?
+
+We'll examine the traffic at all stations hourly, considering two types of riders:
+those who hold **365** passes (*365 Standard, 365 Corporate*, etc) and are 
+likely commuters, and those on 24-hour passes who are more likely to be casual 
+users or tourists. First, holders of **365** passes: 
+
+```{r animate_station_volume_365, include=TRUE, message=FALSE}
+p <- volume_anim("365")
+
+FPS = 20; W = 550; H = 550; DTL = 1; NFRAMES = 1*24*9 # bins per hour * 24 hours * frames/hour
+animate(plot = p, fps = FPS, nframes = NFRAMES, detail=DTL, width=W, height=H)
+```
+
+Traffic is concentrated downtown and
+has pulses of activity around 8am and 4pm, corresponding to rush hour. There
+is also an interesting pulse of late-night activity near Second Beach on the
+western side of Stanley Park that might merit further investigation at
+another time.
+
+Next, 24-hour pass holders: 
+
+```{r animate_station_volume_24_hour, include=TRUE, message=FALSE}
+p <- volume_anim("24 Hour")
+p <- p +
+  annotate("text", x = -123.1302, y = 49.296, label = "Information Booth", color = "gray80", cex = 4.5) 
+
+FPS = 20; W = 550; H = 550; DTL = 1; NFRAMES = 1*24*9 # bins per hour * 24 hours * frames/hour
+animate(plot = p, fps = FPS, nframes = NFRAMES, detail=DTL, width=W, height=H)
+```
+
+Traffic for these riders starts later in the day
+and is concentrated in stations around Stanley Park and the 
+Vancouver seawall.  The station at the Stanley Park information
+booth is in particularly high demand.  All of these observations support the
+idea that 24-hour passes are often purchased by people seeking recreation.
+
+# Seasonal variation in bike use
+
+Finally we'll plot the number of rides taken each day over one year, 
+colouring by membership.  
+
+We see a clear distinction between two types of riders: those who
+ride all through the year, and those who prefer the warmer months. People
+who purchase *24 Hour* or *30 Day* passes have a very strong preference to
+do so in the summer months, whereas the various types of *365* riders seemingly
+commute with their bikes year-round.
+
+```{r seasonal_variation, include=TRUE, message=FALSE}
+df %>% 
+  filter(membership %in% popular_memberships[1:6]) %>% 
+  group_by(day = as.Date(depart_time), membership) %>% 
+  tally() %>% 
+  ggplot(aes(x = day, y = n, color = membership)) +
+  geom_line(alpha = 0.5) + geom_smooth(se=FALSE) +
+  theme_bw() +
+  theme(legend.justification = "top",
+        plot.caption = element_text(size=7, color="gray20")) +
+  labs(title = "Daily bike rides", x=NULL, y=NULL,
+       caption = "Andrew Luyt, 2022  |  Source: Mobi public data")
+```

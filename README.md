@@ -20,7 +20,7 @@ output:
 # Summary
 
 This notebook is a quick analysis of 
-[the public dataset](https://www.mobibikes.ca/en/system-data){target="_blank"} of Mobi, a 
+[the public dataset](https://www.mobibikes.ca/en/system-data) of Mobi, a 
 bike-sharing company in Vancouver, Canada. The data cover one year from August 
 1, 2020 to July 31, 2021.  Three aspects will be covered:
 

@@ -130,7 +130,7 @@ riders to travel in that direction. A very short arrow
 means riders are traveling in *all* directions with no clear pattern. Brighter
 colours mean more traffic.
 
-```{r departing traffic by all members, include=TRUE, message=FALSE}
+```{r departing_traffic_by_all_members, include=TRUE, message=FALSE}
 anim <- df %>%
   filter(id_depart != id_return) %>%
   animated.map(direction = "departing", arrow.scale = 0.25, transition_frames = 10, state_frames = 1)

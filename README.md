@@ -37,7 +37,7 @@ riders to travel in that direction. A very short arrow
 means riders are traveling in *all* directions with no clear pattern. Brighter
 colours mean more traffic.
 
-![](README_files/figure-html/departing traffic by all members-1.gif)<!-- -->
+![](README_files/figure-html/departing_traffic_by_all_members-1.gif)<!-- -->
 
 An interesting pattern is that most traffic flows *towards* downtown, on average.
 A notable exception is the group of stations on the eastern side of Stanley Park which

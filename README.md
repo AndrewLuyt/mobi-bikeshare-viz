@@ -1,21 +1,7 @@
----
-title: "A Brief Analysis of Mobi's Public Dataset"
-author: "Andrew Luyt"
-output:
-  html_document:
-    keep_md: true
----
-
-*Last updated Monday January 17, 2022*
-
-
-
-
-
-
-
-
-
+A Brief Analysis of Mobi's Public Dataset
+================
+Andrew Luyt
+2022-01-17
 
 # Summary
 
